@@ -12,6 +12,9 @@
 // só pra não precisar escrever std:: antes de qualquer operação básica de entrada ou saída
 using namespace std;
 
+float pontoTesteX = 10;
+float pontoTesteY = 10;
+
 // dimensões da janela
 int windowX = 600;
 int windowY = 600;
@@ -29,6 +32,8 @@ float by = 0;
 float ba = -M_PI / 2.0;
 // controle para mover jogador
 float moveplr = 0;
+// controle para a plataforma não bater repetidamente na bola (bug)
+bool turno = true;
 // quantidade de pontos
 int quant = 0;
 // controle para mostrar/esconder pontos e linhas de construção
@@ -38,6 +43,10 @@ bool verLinhas = true;
 float pontos[100][3];
 // vetor com as dimensões do ortho
 float orthoDim[4];
+// raios da elipse e raio da bola
+float xmax;// = A * (orthoDim[1] - orthoDim[0]) / 200.0;
+float ymax;// = B * (orthoDim[3] - orthoDim[2]) / 200.0;
+float r = -1;//ymax * 3.0 / 4.0;
 
 // função auxiliar pra transformar um int em uma string
 string toString(int n);
@@ -124,11 +133,11 @@ float dist(float a, float b, float c, float d)
 
 void display(void)
 {
-	glClearColor (0.95, 0.95, 0.95, 0.0);
-	glClear (GL_COLOR_BUFFER_BIT);
-	float xmax = A * (orthoDim[1] - orthoDim[0]) / 200.0;
-	float ymax = B * (orthoDim[3] - orthoDim[2]) / 200.0;
-	glColor3f (0.09, 0.54, 0.25);
+	if (r < 0)
+		return;
+	glClearColor(0.95, 0.95, 0.95, 0.0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glColor3f(0.09, 0.54, 0.25);
 	glBegin(GL_POLYGON);
 		for (float x = -xmax; x < xmax; x += 0.001)
 			glVertex3f(x + xplr, orthoDim[2] + sqrt(abs(ymax * ymax * (1.0 - x * x / (xmax * xmax)))), 0.0);
@@ -141,7 +150,6 @@ void display(void)
 		glVertex3f(xmax + xcur, orthoDim[3], 0.0);
 	glEnd();
 	glColor3f (0.78, 0.17, 0.11);
-	float r = ymax * 3.0 / 4.0;
 	glBegin(GL_POLYGON);
 		for (float x = -r; x < r; x += 0.001)
 			glVertex3f(bx + x, by + sqrt(r * r - x * x), 0.0);
@@ -185,20 +193,20 @@ void display(void)
 	for (int i = 0; i < c.size(); i++)
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, c[i]);
 
-//	y = sqrt(b²(1-x²/a²))
-//	y'= b²x/(a²sqrt(b²(1-x²/a²)))
 	float angulo = atan((by - orthoDim[2]) / (bx - xplr));
-//	cout << angulo * 180 / M_PI << endl;
-//	float x = xmax * cos(angulo) * angulo / abs(angulo);
 	float x = xmax * ymax / sqrt(ymax * ymax + xmax * xmax * tan(angulo) * tan(angulo)) * angulo / abs(angulo);
 	float y = ymax * sqrt(1.0 - x * x / (xmax * xmax));
-//	float y = sqrt(abs(ymax * ymax * (1.0 - x * x / (xmax * xmax))));
-//	float y = ymax * sin(angulo) * angulo / abs(angulo);
+/*
+	if (pontoTesteX != 10)
+	{
+		x = pontoTesteX;
+		y = pontoTesteY;
+	}
 	glPointSize(10);
 	glBegin(GL_POINTS);
 		glVertex3f(bx, by, 0.0);
 	glEnd();
-	glColor3f (1.0, 0.0, 0.0);
+	glColor3f(1.0, 0.0, 0.0);
 	glBegin(GL_POINTS);
 		glVertex3f(x + xplr, y + orthoDim[2], 0.0);
 	glEnd();
@@ -206,30 +214,76 @@ void display(void)
 		glVertex3f(x + xplr, y + orthoDim[2], 0.0);
 		glVertex3f(bx, by, 0.0);
 	glEnd();
-	float ang = atan(ymax * ymax * x / (xmax * xmax * sqrt(ymax * ymax * (1.0 - x * x / (xmax * xmax)))));
+*/
+	float ang = atan(ymax * ymax * x / (xmax * xmax * sqrt(ymax * ymax * (1.0 - x * x / (xmax * xmax))))) + 3.0 * M_PI / 2.0;
+/*
+	glBegin(GL_LINES);
+		glVertex3f(x + xplr, y + orthoDim[2], 0.0);
+		glVertex3f(x + xplr, y + orthoDim[2] + 1.0, 0.0);
+	glEnd();
+	glColor3f(0.0, 1.0, 1.0);
 	glBegin(GL_LINES);
 		glVertex3f(x + xplr, y + orthoDim[2], 0.0);
 		glVertex3f(x + xplr - cos(ang + M_PI / 2.0), y + orthoDim[2] + sin(ang + M_PI / 2.0), 0.0);
 	glEnd();
-	float d = dist(bx, by, x + xplr, y + orthoDim[2]);
-	cout << d << " <= " << r << "?" << endl;
-	if (d <= r)
-		ba += 2 * (ba - ang);
+*/
+	cout << ba * 180 / M_PI << "°" << " || " << ang * 180 / M_PI << "°" << endl;
+
+	if (dist(bx, by, x + xplr, y + orthoDim[2]) <= r && turno)
+	{
+		ba += 2 * (ang - ba);
+		while (ba < 0)
+			ba += 2 * M_PI;
+		while (ba > 2 * M_PI)
+			ba -= 2 * M_PI;
+		ba += (ba > M_PI) ? -M_PI : M_PI;
+		turno = false;
+		pontoTesteX = x;
+		pontoTesteY = y;
+	}
+
+	angulo = atan(-(by - orthoDim[3]) / (bx - xcur));
+	x = xmax * ymax / sqrt(ymax * ymax + xmax * xmax * tan(angulo) * tan(angulo)) * angulo / abs(angulo);
+	y = ymax * sqrt(1.0 - x * x / (xmax * xmax));
+	ang = atan(ymax * ymax * x / (xmax * xmax * sqrt(ymax * ymax * (1.0 - x * x / (xmax * xmax))))) + M_PI / 2.0;
+	if (dist(bx, by, x + xcur, orthoDim[3] - y) <= r && !turno)
+	{
+		ba += 2 * (ang - ba);
+		while (ba < 0)
+			ba += 2 * M_PI;
+		while (ba > 2 * M_PI)
+			ba -= 2 * M_PI;
+		ba += (ba > M_PI) ? -M_PI : M_PI;
+		turno = true;
+		pontoTesteX = x;
+		pontoTesteY = y;
+	}
+
+	while (ba < 0)
+		ba += 2 * M_PI;
+	while (ba > 2 * M_PI)
+		ba -= 2 * M_PI;
 
 	glutSwapBuffers();
 }
 
 void idle(void)
 {
+	if (r < 0)
+		return;
 	float xnew = xplr + moveplr / 10;
-	float ymax = B * (orthoDim[3] - orthoDim[2]) / 200;
-	float r = ymax * 3.0 / 4.0;
 	if (xnew > orthoDim[0] && xnew < orthoDim[1])
 		xplr = xnew;
 	bx += 0.0005 * cos(ba);
 	by += 0.0005 * sin(ba);
-//	if (bx + r >= orthoDim[0] || bx - r <= orthoDim[1])
-//		ba = atan(-by / bx);
+	if (bx - r <= orthoDim[0] && ba > M_PI / 2.0 && ba < 3 * M_PI / 2.0)
+		ba = (M_PI - ba);
+	if (bx + r >= orthoDim[1] && (ba < M_PI / 2.0 || ba > 3 * M_PI / 2.0))
+		ba = (M_PI - ba);
+	while (ba < 0)
+		ba += 2 * M_PI;
+	while (ba > 2 * M_PI)
+		ba -= 2 * M_PI;
 	glutPostRedisplay();
 }
 
@@ -263,6 +317,9 @@ void reshape(int w, int h)
 	glOrtho(orthoDim[0], orthoDim[1], orthoDim[2], orthoDim[3], 0.0, 0.0);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
+	xmax = A * (orthoDim[1] - orthoDim[0]) / 200.0;
+	ymax = B * (orthoDim[3] - orthoDim[2]) / 200.0;
+	r = ymax * 3.0 / 4.0;
 }
 
 void keyboard(unsigned char key, int x, int y)
