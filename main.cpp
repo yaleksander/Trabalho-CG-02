@@ -33,7 +33,7 @@ float ba = -M_PI / 2.0;
 // controle para mover jogador
 float moveplr = 0;
 // controle para a plataforma não bater repetidamente na bola (bug)
-bool turno = true;
+bool turno = false;
 // quantidade de pontos
 int quant = 0;
 // controle para mostrar/esconder pontos e linhas de construção
@@ -196,56 +196,24 @@ void display(void)
 	float angulo = atan((by - orthoDim[2]) / (bx - xplr));
 	float x = xmax * ymax / sqrt(ymax * ymax + xmax * xmax * tan(angulo) * tan(angulo)) * angulo / abs(angulo);
 	float y = ymax * sqrt(1.0 - x * x / (xmax * xmax));
-/*
-	if (pontoTesteX != 10)
-	{
-		x = pontoTesteX;
-		y = pontoTesteY;
-	}
-	glPointSize(10);
-	glBegin(GL_POINTS);
-		glVertex3f(bx, by, 0.0);
-	glEnd();
-	glColor3f(1.0, 0.0, 0.0);
-	glBegin(GL_POINTS);
-		glVertex3f(x + xplr, y + orthoDim[2], 0.0);
-	glEnd();
-	glBegin(GL_LINES);
-		glVertex3f(x + xplr, y + orthoDim[2], 0.0);
-		glVertex3f(bx, by, 0.0);
-	glEnd();
-*/
-	float ang = atan(ymax * ymax * x / (xmax * xmax * sqrt(ymax * ymax * (1.0 - x * x / (xmax * xmax))))) + 3.0 * M_PI / 2.0;
-/*
-	glBegin(GL_LINES);
-		glVertex3f(x + xplr, y + orthoDim[2], 0.0);
-		glVertex3f(x + xplr, y + orthoDim[2] + 1.0, 0.0);
-	glEnd();
-	glColor3f(0.0, 1.0, 1.0);
-	glBegin(GL_LINES);
-		glVertex3f(x + xplr, y + orthoDim[2], 0.0);
-		glVertex3f(x + xplr - cos(ang + M_PI / 2.0), y + orthoDim[2] + sin(ang + M_PI / 2.0), 0.0);
-	glEnd();
-*/
-	cout << ba * 180 / M_PI << "°" << " || " << ang * 180 / M_PI << "°" << endl;
-
+	float ang = M_PI / 2.0 - atan(ymax * ymax * x / (xmax * xmax * sqrt(ymax * ymax * (1.0 - x * x / (xmax * xmax)))));
 	if (dist(bx, by, x + xplr, y + orthoDim[2]) <= r && turno)
 	{
+		cout << ba * 180 / M_PI << "° || " << ang * 180 / M_PI << "° || ";
 		ba += 2 * (ang - ba);
 		while (ba < 0)
 			ba += 2 * M_PI;
 		while (ba > 2 * M_PI)
 			ba -= 2 * M_PI;
-		ba += (ba > M_PI) ? -M_PI : M_PI;
 		turno = false;
-		pontoTesteX = x;
-		pontoTesteY = y;
+		ba += (ba > M_PI) ? -M_PI : M_PI;
+		cout << ba * 180 / M_PI << "°" << endl;
 	}
 
 	angulo = atan(-(by - orthoDim[3]) / (bx - xcur));
 	x = xmax * ymax / sqrt(ymax * ymax + xmax * xmax * tan(angulo) * tan(angulo)) * angulo / abs(angulo);
 	y = ymax * sqrt(1.0 - x * x / (xmax * xmax));
-	ang = atan(ymax * ymax * x / (xmax * xmax * sqrt(ymax * ymax * (1.0 - x * x / (xmax * xmax))))) + M_PI / 2.0;
+	ang = atan(ymax * ymax * x / (xmax * xmax * sqrt(ymax * ymax * (1.0 - x * x / (xmax * xmax))))) + 3 * M_PI / 2.0;
 	if (dist(bx, by, x + xcur, orthoDim[3] - y) <= r && !turno)
 	{
 		ba += 2 * (ang - ba);
@@ -253,16 +221,9 @@ void display(void)
 			ba += 2 * M_PI;
 		while (ba > 2 * M_PI)
 			ba -= 2 * M_PI;
-		ba += (ba > M_PI) ? -M_PI : M_PI;
 		turno = true;
-		pontoTesteX = x;
-		pontoTesteY = y;
+		ba += (ba > M_PI) ? -M_PI : M_PI;
 	}
-
-	while (ba < 0)
-		ba += 2 * M_PI;
-	while (ba > 2 * M_PI)
-		ba -= 2 * M_PI;
 
 	glutSwapBuffers();
 }
@@ -274,11 +235,11 @@ void idle(void)
 	float xnew = xplr + moveplr / 10;
 	if (xnew > orthoDim[0] && xnew < orthoDim[1])
 		xplr = xnew;
-	bx += 0.0005 * cos(ba);
-	by += 0.0005 * sin(ba);
-	if (bx - r <= orthoDim[0] && ba > M_PI / 2.0 && ba < 3 * M_PI / 2.0)
+	bx -= 0.0003 * cos(ba);
+	by -= 0.0003 * sin(ba);
+	if (bx - r <= orthoDim[0] && (ba < M_PI / 2.0 || ba > 3 * M_PI / 2.0))
 		ba = (M_PI - ba);
-	if (bx + r >= orthoDim[1] && (ba < M_PI / 2.0 || ba > 3 * M_PI / 2.0))
+	if (bx + r >= orthoDim[1] && ba > M_PI / 2.0 && ba < 3 * M_PI / 2.0)
 		ba = (M_PI - ba);
 	while (ba < 0)
 		ba += 2 * M_PI;
