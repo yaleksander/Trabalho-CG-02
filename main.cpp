@@ -3,6 +3,9 @@
 #include <iostream>
 #include <cstdlib>
 #include <cmath>
+#include <fstream>
+#include <iostream>
+
 
 // tamanho (percentual da tela) horizontal das pranchas
 #define A 20
@@ -47,6 +50,9 @@ float orthoDim[4];
 float xmax;// = A * (orthoDim[1] - orthoDim[0]) / 200.0;
 float ymax;// = B * (orthoDim[3] - orthoDim[2]) / 200.0;
 float r = -1;//ymax * 3.0 / 4.0;
+bool menu = true;
+bool pontuacao = false;
+bool maquina = true;
 
 // função auxiliar pra transformar um int em uma string
 string toString(int n);
@@ -65,6 +71,7 @@ void specialKeys(int key, int x, int y);
 void specialKeysUp(int key, int x, int y);
 // função de callback quando o cursor do mouse é movimentado
 void motion(int x, int y);
+void atualiza_rank(int pontuacao);
 
 int main(int argc, char** argv)
 {
@@ -225,7 +232,180 @@ void display(void)
 		ba += (ba > M_PI) ? -M_PI : M_PI;
 	}
 
-	glutSwapBuffers();
+    if(menu){
+        glColor3f(1.0, 1.0, 0.0);
+
+        glBegin(GL_POLYGON);
+            glVertex3f(-0.8, -0.8, 0.0);
+            glVertex3f(-0.8, 0.8, 0.0);
+            glVertex3f(0.8, 0.8, 0.0);
+            glVertex3f(0.8, -0.8, 0.0);
+        glEnd();
+
+        glColor3f(0.0, 1.0, 0.0);
+
+        glBegin(GL_POLYGON);
+            glVertex3f(-0.7, -0.1, 0.0);
+            glVertex3f(-0.7, 0.1, 0.0);
+            glVertex3f(0.7, 0.1, 0.0);
+            glVertex3f(0.7, -0.1, 0.0);
+        glEnd();
+
+        glBegin(GL_POLYGON);
+            glVertex3f(-0.7, -0.4, 0.0);
+            glVertex3f(-0.7, -0.2, 0.0);
+            glVertex3f(0.7, -0.2, 0.0);
+            glVertex3f(0.7, -0.4, 0.0);
+        glEnd();
+
+        glBegin(GL_POLYGON);
+            glVertex3f(-0.7, -0.7, 0.0);
+            glVertex3f(-0.7, -0.5, 0.0);
+            glVertex3f(-0.05, -0.5, 0.0);
+            glVertex3f(-0.05, -0.7, 0.0);
+        glEnd();
+
+        glBegin(GL_POLYGON);
+            glVertex3f(0.7, -0.7, 0.0);
+            glVertex3f(0.7, -0.5, 0.0);
+            glVertex3f(0.05, -0.5, 0.0);
+            glVertex3f(0.05, -0.7, 0.0);
+        glEnd();
+
+        glColor3f(0.0, 0.0, 0.0);
+
+        string strpong = "PONG";
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(-0.1, 0.4);
+        for (int i = 0; i < strpong.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpong[i]);
+
+        string strpvp = "Player X Player";
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(-0.25, -0.02);
+        for (int i = 0; i < strpvp.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpvp[i]);
+
+        string strpve = "Player X COM";
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(-0.25, -0.33);
+        for (int i = 0; i < strpve.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpve[i]);
+
+        string strrank = "Rank";
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(-0.45, -0.63);
+        for (int i = 0; i < strrank.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strrank[i]);
+
+        string strsair = "Sair";
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(0.3, -0.63);
+        for (int i = 0; i < strsair.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strsair[i]);
+
+    }
+
+    if(pontuacao){
+
+        ifstream arquivo ( "Pontuacoes_COM" );
+
+        string str_recordes[10];
+        for( int i = 0; i < 10; i++ ){
+            getline (arquivo, str_recordes[i]);
+        }
+
+        glColor3f(1.0, 0.5, 0.0);
+
+        glBegin(GL_POLYGON);
+            glVertex3f(-0.7, -0.7, 0.0);
+            glVertex3f(-0.7, 0.7, 0.0);
+            glVertex3f(0.7, 0.7, 0.0);
+            glVertex3f(0.7, -0.7, 0.0);
+        glEnd();
+
+        glColor3f(0.5, 0.5, 1.0);
+        glBegin(GL_POLYGON);
+            glVertex3f(0.7, -0.7, 0.0);
+            glVertex3f(0.7, -0.5, 0.0);
+            glVertex3f(0.05, -0.5, 0.0);
+            glVertex3f(0.05, -0.7, 0.0);
+        glEnd();
+
+        string strpotuacao = "Placar de Lideres";
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(-0.27, 0.55);
+        for (int i = 0; i < strpotuacao.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao[i]);
+
+        string strpotuacao1 = "1 - " + str_recordes[0];
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(-0.6, 0.35);
+        for (int i = 0; i < strpotuacao1.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao1[i]);
+
+        string strpotuacao2 = "2 - " + str_recordes[1];
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(-0.6, 0.20);
+        for (int i = 0; i < strpotuacao2.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao2[i]);
+
+        string strpotuacao3 = "3 - " + str_recordes[2];
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(-0.6, 0.05);
+        for (int i = 0; i < strpotuacao3.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao3[i]);
+
+        string strpotuacao4 = "4 - " + str_recordes[3];
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(-0.6, -0.10);
+        for (int i = 0; i < strpotuacao4.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao4[i]);
+
+        string strpotuacao5 = "5 - " + str_recordes[4];
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(-0.6, -0.25);
+        for (int i = 0; i < strpotuacao5.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao5[i]);
+
+        string strpotuacao6 = "6   - " + str_recordes[5];
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(0.0, 0.35);
+        for (int i = 0; i < strpotuacao6.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao6[i]);
+
+        string strpotuacao7 = "7   - " + str_recordes[6];
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(0.0, 0.20);
+        for (int i = 0; i < strpotuacao7.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao7[i]);
+
+        string strpotuacao8 = "8   - " + str_recordes[7];
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(0.0, 0.05);
+        for (int i = 0; i < strpotuacao8.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao8[i]);
+
+        string strpotuacao9 = "9   - " + str_recordes[8];
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(0.0, -0.10);
+        for (int i = 0; i < strpotuacao9.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao9[i]);
+
+        string strpotuacao10 = "10 - " + str_recordes[9];
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(0.0, -0.25);
+        for (int i = 0; i < strpotuacao10.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao10[i]);
+
+        string strvoltar = "Voltar";
+        glColor3f (0.0, 0.0, 0.0);
+        glRasterPos2f(0.27, -0.63);
+        for (int i = 0; i < strvoltar.size(); i++)
+            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strvoltar[i]);
+    }
+
+    glutSwapBuffers();
 }
 
 void idle(void)
@@ -287,14 +467,7 @@ void keyboard(unsigned char key, int x, int y)
 {
 	switch (key)
 	{
-		case 'l':
-			// pressionar 'p' mostra/esconde os pontos na tela
-			verLinhas = !verLinhas;
-			break;
-		case 'p':
-			// pressionar 'l' mostra/esconde as linhas de construção na tela
-			verPontos = !verPontos;
-			break;
+
 		case 27:
 			// pressionar "ESC" encerra o programa
 			exit(0);
@@ -307,7 +480,7 @@ void keyboard(unsigned char key, int x, int y)
 
 void keyboardUp(unsigned char key, int x, int y)
 {
-	
+
 }
 
 void specialKeys(int key, int x, int y)
@@ -338,4 +511,37 @@ void motion(int x, int y)
 	y = windowY - y;
 	xcur = x * (orthoDim[1] - orthoDim[0]) / windowX + orthoDim[0];
 	ycur = y * (orthoDim[3] - orthoDim[2]) / windowY + orthoDim[2];
+}
+
+void atualiza_rank(int pontuacao){
+    int j = 9;
+
+    ifstream arquivo ( "Pontuacoes_COM" );
+
+    string str_recordes[10];
+    int int_recordes[10];
+    for( int i = 0; i < 10; i++ ){
+        getline (arquivo, str_recordes[i]);
+        int_recordes[i] = atoi(str_recordes[i].c_str());
+    }
+
+    if(pontuacao > int_recordes[9]){
+        while(pontuacao > int_recordes[j-1] && j > 0){
+            int_recordes[j] = int_recordes[j-1];
+            j--;
+        }
+        int_recordes[j] = pontuacao;
+
+        ofstream arquivo;
+        arquivo.open ("Pontuacoes_COM");
+
+            for(int i = 0; i < 10; i++){
+                arquivo << int_recordes[i];
+                arquivo << "\n";
+            }
+        arquivo.close();
+    }
+        for(int i = 0; i < 10; i++){
+        cout << int_recordes[i] << endl;
+    }
 }
