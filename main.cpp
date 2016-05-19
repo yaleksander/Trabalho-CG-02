@@ -5,7 +5,7 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
-
+#include <ctime>
 
 // tamanho (percentual da tela) horizontal das pranchas
 #define A 20
@@ -15,44 +15,50 @@
 // só pra não precisar escrever std:: antes de qualquer operação básica de entrada ou saída
 using namespace std;
 
-float pontoTesteX = 10;
-float pontoTesteY = 10;
-
-// dimensões da janela
+// dimensões da janela (quadrada)
 int windowX = 600;
-int windowY = 600;
-// dimensões do jogo
-int viewX = 400;
-int viewY = 600;
+int windowY = windowX;
+// dimensões iniciais da janela ficam salvas
+int originX = windowX;
+int originY = windowY;
+// posição inicial do viewport (correção)
+float fx;
+float fy;
+// posição do cursor quando na tela de menu
+float xmenu;
+float ymenu;
+// controle de seleção do menu
+int opcao;
 // posição horizontal do cursor
 float xcur;
-float ycur;
 // posição horizontal do jogador
 float xplr;
 // coordenadas e ângulo da bola
 float bx = 0;
 float by = 0;
-float ba = -M_PI / 2.0;
+float ba = M_PI / 2.0;
 // controle para mover jogador
 float moveplr = 0;
 // controle para a plataforma não bater repetidamente na bola (bug)
-bool turno = false;
-// quantidade de pontos
-int quant = 0;
-// controle para mostrar/esconder pontos e linhas de construção
-bool verPontos = true;
-bool verLinhas = true;
-// vetor com as coordenadas dos pontos
-float pontos[100][3];
+bool turno = true;
 // vetor com as dimensões do ortho
-float orthoDim[4];
-// raios da elipse e raio da bola
-float xmax;// = A * (orthoDim[1] - orthoDim[0]) / 200.0;
-float ymax;// = B * (orthoDim[3] - orthoDim[2]) / 200.0;
-float r = -1;//ymax * 3.0 / 4.0;
+float orthoDim[4] = {-1.0, 1.0, -1.0, 1.0};
+// raios da elipse e raio da bola (inicializados em reshape)
+float xmax;
+float ymax;
+float r;
+// vidas dos jogadores
+int vidaA;
+int vidaB;
+// funções do menu
 bool menu = true;
 bool pontuacao = false;
 bool maquina = true;
+bool full = true;
+// tempo de jogo
+int relogio;
+time_t start;
+time_t now;
 
 // função auxiliar pra transformar um int em uma string
 string toString(int n);
@@ -64,9 +70,8 @@ void display(void);
 void idle(void);
 // função de callback pra quando a tela for redimensionada
 void reshape(int w, int h);
-// funções de callback do teclado
-void keyboard(unsigned char key, int x, int y);
-void keyboardUp(unsigned char key, int x, int y);
+// funções de callback do teclado e do mouse
+void mouse(int button, int state, int x, int y);
 void specialKeys(int key, int x, int y);
 void specialKeysUp(int key, int x, int y);
 // função de callback quando o cursor do mouse é movimentado
@@ -80,22 +85,13 @@ int main(int argc, char** argv)
 	glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
 	glutInitWindowSize(windowX, windowY);
 	glutInitWindowPosition(100, 100);
-	glutCreateWindow("Curvas Interativas");
-
-	// instruções para o usuário
-	cout << endl;
-	cout << "  Use o botão esquerdo do mouse para criar ou mover um ponto na tela" << endl;
-	cout << "  Use o botão direito do mouse para apagar um ponto da tela" << endl;
-	cout << "  Use a tecla \'l\' para mostrar/esconder as linhas de construção" << endl;
-	cout << "  Use a tecla \'p\' para mostrar/esconder os pontos" << endl;
-	cout << "  Use a tecla \"ESC\" para encerrar o programa" << endl;
-	cout << endl;
+	glutCreateWindow("Pong");
+	glutFullScreen();
 
 	// associando funções de callback
 	glutDisplayFunc(display);
 	glutIdleFunc(idle);
-	glutKeyboardFunc(keyboard);
-	glutKeyboardUpFunc(keyboardUp);
+	glutMouseFunc(mouse);
 	glutSpecialFunc(specialKeys);
 	glutSpecialUpFunc(specialKeysUp);
 	glutPassiveMotionFunc(motion);
@@ -140,21 +136,26 @@ float dist(float a, float b, float c, float d)
 
 void display(void)
 {
-	if (r < 0)
-		return;
-	glClearColor(0.95, 0.95, 0.95, 0.0);
+	glClearColor(0.75, 0.75, 0.75, 0.0);
 	glClear(GL_COLOR_BUFFER_BIT);
+	glColor3f(0.95, 0.95, 0.95);
+	glBegin(GL_POLYGON);
+		glVertex3f(orthoDim[0], orthoDim[2], 0.0);
+		glVertex3f(orthoDim[0], orthoDim[3], 0.0);
+		glVertex3f(orthoDim[1], orthoDim[3], 0.0);
+		glVertex3f(orthoDim[1], orthoDim[2], 0.0);
+	glEnd();
 	glColor3f(0.09, 0.54, 0.25);
 	glBegin(GL_POLYGON);
 		for (float x = -xmax; x < xmax; x += 0.001)
-			glVertex3f(x + xplr, orthoDim[2] + sqrt(abs(ymax * ymax * (1.0 - x * x / (xmax * xmax)))), 0.0);
-		glVertex3f(xmax + xplr, orthoDim[2], 0.0);
+			glVertex3f(x + xcur, orthoDim[2] + sqrt(abs(ymax * ymax * (1.0 - x * x / (xmax * xmax)))), 0.0);
+		glVertex3f(xmax + xcur, orthoDim[2], 0.0);
 	glEnd();
 	glColor3f (0.04, 0.48, 0.76);
 	glBegin(GL_POLYGON);
 		for (float x = -xmax; x < xmax; x += 0.001)
-			glVertex3f(x + xcur, orthoDim[3] - sqrt(abs(ymax * ymax * (1.0 - x * x / (xmax * xmax)))), 0.0);
-		glVertex3f(xmax + xcur, orthoDim[3], 0.0);
+			glVertex3f(x + xplr, orthoDim[3] - sqrt(abs(ymax * ymax * (1.0 - x * x / (xmax * xmax)))), 0.0);
+		glVertex3f(xmax + xplr, orthoDim[3], 0.0);
 	glEnd();
 	glColor3f (0.78, 0.17, 0.11);
 	glBegin(GL_POLYGON);
@@ -164,23 +165,23 @@ void display(void)
 			glVertex3f(bx + x, by - sqrt(r * r - x * x), 0.0);
 	glEnd();
 
-	string a = toString(154);
+	string a = toString(vidaB);
 	float widthA = 0;
 	for (int i = 0; i < a.size(); i++)
 		widthA += glutBitmapWidth(GLUT_BITMAP_HELVETICA_18, a[i]);
-	widthA *= (orthoDim[1] - orthoDim[0]) / windowX;
+	widthA *= (orthoDim[1] - orthoDim[0]) / originX;
 
-	string b = toString(0) + ":" + toString(25);
+	string b = toString((300 - relogio) / 60) + (((300 - relogio) % 60 < 10) ? ":0" : ":") + toString((300 - relogio) % 60);
 	float widthB = 0;
 	for (int i = 0; i < b.size(); i++)
 		widthB += glutBitmapWidth(GLUT_BITMAP_HELVETICA_18, b[i]);
-	widthB *= (orthoDim[1] - orthoDim[0]) / windowX;
+	widthB *= (orthoDim[1] - orthoDim[0]) / originX;
 
-	string c = toString(154);
+	string c = toString(vidaA);
 	float widthC = 0;
 	for (int i = 0; i < c.size(); i++)
 		widthC += glutBitmapWidth(GLUT_BITMAP_HELVETICA_18, c[i]);
-	widthC *= (orthoDim[1] - orthoDim[0]) / windowX;
+	widthC *= (orthoDim[1] - orthoDim[0]) / originX;
 
 	float w = (orthoDim[1] - orthoDim[0] - widthA - widthB - widthC) / 12.0;
 	float h = -(orthoDim[3] - orthoDim[2]) * 9.0 / windowY;
@@ -200,13 +201,257 @@ void display(void)
 	for (int i = 0; i < c.size(); i++)
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, c[i]);
 
-	float angulo = atan((by - orthoDim[2]) / (bx - xplr));
+	if(menu)
+	{
+		glColor3f(1.0, 1.0, 0.0);
+
+		glBegin(GL_POLYGON);
+			glVertex3f(-0.8, -0.8, 0.0);
+			glVertex3f(-0.8, 0.8, 0.0);
+			glVertex3f(0.8, 0.8, 0.0);
+			glVertex3f(0.8, -0.8, 0.0);
+		glEnd();
+
+		opcao = 0;
+
+		if (xmenu >= -0.7 && xmenu <= 0.7 && ymenu >= -0.1 && ymenu <= 0.1)
+		{
+			opcao = 1;
+			glColor3f(1.0, 0.0, 0.0);
+		}
+		else
+			glColor3f(0.0, 1.0, 0.0);
+
+		glBegin(GL_POLYGON);
+			glVertex3f(-0.7, -0.1, 0.0);
+			glVertex3f(-0.7, 0.1, 0.0);
+			glVertex3f(0.7, 0.1, 0.0);
+			glVertex3f(0.7, -0.1, 0.0);
+		glEnd();
+
+		if (xmenu >= -0.7 && xmenu <= 0.7 && ymenu >= -0.4 && ymenu <= -0.2)
+		{
+			opcao = 2;
+			glColor3f(1.0, 0.0, 0.0);
+		}
+		else
+			glColor3f(0.0, 1.0, 0.0);
+
+		glBegin(GL_POLYGON);
+			glVertex3f(-0.7, -0.4, 0.0);
+			glVertex3f(-0.7, -0.2, 0.0);
+			glVertex3f(0.7, -0.2, 0.0);
+			glVertex3f(0.7, -0.4, 0.0);
+		glEnd();
+
+		if (xmenu >= -0.7 && xmenu <= -0.05 && ymenu >= -0.7 && ymenu <= -0.5)
+		{
+			opcao = 3;
+			glColor3f(1.0, 0.0, 0.0);
+		}
+		else
+			glColor3f(0.0, 1.0, 0.0);
+
+		glBegin(GL_POLYGON);
+			glVertex3f(-0.7, -0.7, 0.0);
+			glVertex3f(-0.7, -0.5, 0.0);
+			glVertex3f(-0.05, -0.5, 0.0);
+			glVertex3f(-0.05, -0.7, 0.0);
+		glEnd();
+
+		if (xmenu >= 0.05 && xmenu <= 0.7 && ymenu >= -0.7 && ymenu <= -0.5)
+		{
+			opcao = 4;
+			glColor3f(1.0, 0.0, 0.0);
+		}
+		else
+			glColor3f(0.0, 1.0, 0.0);
+
+		glBegin(GL_POLYGON);
+			glVertex3f(0.7, -0.7, 0.0);
+			glVertex3f(0.7, -0.5, 0.0);
+			glVertex3f(0.05, -0.5, 0.0);
+			glVertex3f(0.05, -0.7, 0.0);
+		glEnd();
+
+		glColor3f(0.0, 0.0, 0.0);
+
+		string strpong = "PONG";
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(-0.1, 0.4);
+		for (int i = 0; i < strpong.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpong[i]);
+
+		string strpvp = "Player X Player";
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(-0.25, -0.02);
+		for (int i = 0; i < strpvp.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpvp[i]);
+
+		string strpve = "Player X COM";
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(-0.25, -0.33);
+		for (int i = 0; i < strpve.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpve[i]);
+
+		string strrank = "Rank";
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(-0.45, -0.63);
+		for (int i = 0; i < strrank.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strrank[i]);
+
+		string strsair = "Sair";
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(0.3, -0.63);
+		for (int i = 0; i < strsair.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strsair[i]);
+
+	}
+
+	if(pontuacao)
+	{
+
+		ifstream arquivo ( "Pontuacoes_COM" );
+
+		string str_recordes[10];
+		for( int i = 0; i < 10; i++ )
+			getline (arquivo, str_recordes[i]);
+
+		glColor3f(1.0, 0.5, 0.0);
+
+		glBegin(GL_POLYGON);
+			glVertex3f(-0.7, -0.7, 0.0);
+			glVertex3f(-0.7, 0.7, 0.0);
+			glVertex3f(0.7, 0.7, 0.0);
+			glVertex3f(0.7, -0.7, 0.0);
+		glEnd();
+
+		opcao = 0;
+		if (xmenu >= 0.05 && xmenu <= 0.7 && ymenu >= -0.7 && ymenu <= -0.5)
+		{
+			opcao = 5;
+			glColor3f(0.8, 0.4, 0.0);
+		}
+		else
+			glColor3f(0.5, 0.5, 1.0);
+		glBegin(GL_POLYGON);
+			glVertex3f(0.7, -0.7, 0.0);
+			glVertex3f(0.7, -0.5, 0.0);
+			glVertex3f(0.05, -0.5, 0.0);
+			glVertex3f(0.05, -0.7, 0.0);
+		glEnd();
+
+		string strpotuacao = "Placar de Lideres";
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(-0.27, 0.55);
+		for (int i = 0; i < strpotuacao.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao[i]);
+
+		string strpotuacao1 = "1 - " + str_recordes[0];
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(-0.6, 0.35);
+		for (int i = 0; i < strpotuacao1.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao1[i]);
+
+		string strpotuacao2 = "2 - " + str_recordes[1];
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(-0.6, 0.20);
+		for (int i = 0; i < strpotuacao2.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao2[i]);
+
+		string strpotuacao3 = "3 - " + str_recordes[2];
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(-0.6, 0.05);
+		for (int i = 0; i < strpotuacao3.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao3[i]);
+
+		string strpotuacao4 = "4 - " + str_recordes[3];
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(-0.6, -0.10);
+		for (int i = 0; i < strpotuacao4.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao4[i]);
+
+		string strpotuacao5 = "5 - " + str_recordes[4];
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(-0.6, -0.25);
+		for (int i = 0; i < strpotuacao5.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao5[i]);
+
+		string strpotuacao6 = "6   - " + str_recordes[5];
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(0.0, 0.35);
+		for (int i = 0; i < strpotuacao6.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao6[i]);
+
+		string strpotuacao7 = "7   - " + str_recordes[6];
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(0.0, 0.20);
+		for (int i = 0; i < strpotuacao7.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao7[i]);
+
+		string strpotuacao8 = "8   - " + str_recordes[7];
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(0.0, 0.05);
+		for (int i = 0; i < strpotuacao8.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao8[i]);
+
+		string strpotuacao9 = "9   - " + str_recordes[8];
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(0.0, -0.10);
+		for (int i = 0; i < strpotuacao9.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao9[i]);
+
+		string strpotuacao10 = "10 - " + str_recordes[9];
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(0.0, -0.25);
+		for (int i = 0; i < strpotuacao10.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao10[i]);
+
+		string strvoltar = "Voltar";
+		glColor3f (0.0, 0.0, 0.0);
+		glRasterPos2f(0.27, -0.63);
+		for (int i = 0; i < strvoltar.size(); i++)
+			glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strvoltar[i]);
+	}
+
+	glutSwapBuffers();
+}
+
+void idle(void)
+{
+	if (maquina)
+	{
+		if (bx < xplr)
+			xplr -= 0.005;
+		if (bx > xplr)
+			xplr += 0.005;
+	}
+	if (!menu)
+		relogio = difftime(time(NULL), start);
+	else
+	{
+		relogio = 0;
+		ba = (ba > M_PI) ? 3 * M_PI / 2.0 : M_PI / 2.0;
+	}
+	float xnew = xplr + moveplr / 10;
+	if (xnew > orthoDim[0] && xnew < orthoDim[1])
+		xplr = xnew;
+	bx -= (1.0 + (float) relogio / 30.0) * 0.005 * cos(ba);
+	by -= (1.0 + (float) relogio / 30.0) * 0.005 * sin(ba);
+	if (bx - r <= orthoDim[0] && (ba < M_PI / 2.0 || ba > 3 * M_PI / 2.0))
+		ba = (M_PI - ba);
+	if (bx + r >= orthoDim[1] && ba > M_PI / 2.0 && ba < 3 * M_PI / 2.0)
+		ba = (M_PI - ba);
+	while (ba < 0)
+		ba += 2 * M_PI;
+	while (ba > 2 * M_PI)
+		ba -= 2 * M_PI;
+	float angulo = atan((by - orthoDim[2]) / (bx - xcur));
 	float x = xmax * ymax / sqrt(ymax * ymax + xmax * xmax * tan(angulo) * tan(angulo)) * angulo / abs(angulo);
 	float y = ymax * sqrt(1.0 - x * x / (xmax * xmax));
 	float ang = M_PI / 2.0 - atan(ymax * ymax * x / (xmax * xmax * sqrt(ymax * ymax * (1.0 - x * x / (xmax * xmax)))));
-	if (dist(bx, by, x + xplr, y + orthoDim[2]) <= r && turno)
+	if (dist(bx, by, x + xcur, y + orthoDim[2]) <= r && turno)
 	{
-		cout << ba * 180 / M_PI << "° || " << ang * 180 / M_PI << "° || ";
 		ba += 2 * (ang - ba);
 		while (ba < 0)
 			ba += 2 * M_PI;
@@ -214,14 +459,12 @@ void display(void)
 			ba -= 2 * M_PI;
 		turno = false;
 		ba += (ba > M_PI) ? -M_PI : M_PI;
-		cout << ba * 180 / M_PI << "°" << endl;
 	}
-
-	angulo = atan(-(by - orthoDim[3]) / (bx - xcur));
+	angulo = atan(-(by - orthoDim[3]) / (bx - xplr));
 	x = xmax * ymax / sqrt(ymax * ymax + xmax * xmax * tan(angulo) * tan(angulo)) * angulo / abs(angulo);
 	y = ymax * sqrt(1.0 - x * x / (xmax * xmax));
 	ang = atan(ymax * ymax * x / (xmax * xmax * sqrt(ymax * ymax * (1.0 - x * x / (xmax * xmax))))) + 3 * M_PI / 2.0;
-	if (dist(bx, by, x + xcur, orthoDim[3] - y) <= r && !turno)
+	if (dist(bx, by, x + xplr, orthoDim[3] - y) <= r && !turno)
 	{
 		ba += 2 * (ang - ba);
 		while (ba < 0)
@@ -231,231 +474,56 @@ void display(void)
 		turno = true;
 		ba += (ba > M_PI) ? -M_PI : M_PI;
 	}
-
-    if(menu){
-        glColor3f(1.0, 1.0, 0.0);
-
-        glBegin(GL_POLYGON);
-            glVertex3f(-0.8, -0.8, 0.0);
-            glVertex3f(-0.8, 0.8, 0.0);
-            glVertex3f(0.8, 0.8, 0.0);
-            glVertex3f(0.8, -0.8, 0.0);
-        glEnd();
-
-        glColor3f(0.0, 1.0, 0.0);
-
-        glBegin(GL_POLYGON);
-            glVertex3f(-0.7, -0.1, 0.0);
-            glVertex3f(-0.7, 0.1, 0.0);
-            glVertex3f(0.7, 0.1, 0.0);
-            glVertex3f(0.7, -0.1, 0.0);
-        glEnd();
-
-        glBegin(GL_POLYGON);
-            glVertex3f(-0.7, -0.4, 0.0);
-            glVertex3f(-0.7, -0.2, 0.0);
-            glVertex3f(0.7, -0.2, 0.0);
-            glVertex3f(0.7, -0.4, 0.0);
-        glEnd();
-
-        glBegin(GL_POLYGON);
-            glVertex3f(-0.7, -0.7, 0.0);
-            glVertex3f(-0.7, -0.5, 0.0);
-            glVertex3f(-0.05, -0.5, 0.0);
-            glVertex3f(-0.05, -0.7, 0.0);
-        glEnd();
-
-        glBegin(GL_POLYGON);
-            glVertex3f(0.7, -0.7, 0.0);
-            glVertex3f(0.7, -0.5, 0.0);
-            glVertex3f(0.05, -0.5, 0.0);
-            glVertex3f(0.05, -0.7, 0.0);
-        glEnd();
-
-        glColor3f(0.0, 0.0, 0.0);
-
-        string strpong = "PONG";
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(-0.1, 0.4);
-        for (int i = 0; i < strpong.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpong[i]);
-
-        string strpvp = "Player X Player";
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(-0.25, -0.02);
-        for (int i = 0; i < strpvp.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpvp[i]);
-
-        string strpve = "Player X COM";
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(-0.25, -0.33);
-        for (int i = 0; i < strpve.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpve[i]);
-
-        string strrank = "Rank";
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(-0.45, -0.63);
-        for (int i = 0; i < strrank.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strrank[i]);
-
-        string strsair = "Sair";
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(0.3, -0.63);
-        for (int i = 0; i < strsair.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strsair[i]);
-
-    }
-
-    if(pontuacao){
-
-        ifstream arquivo ( "Pontuacoes_COM" );
-
-        string str_recordes[10];
-        for( int i = 0; i < 10; i++ ){
-            getline (arquivo, str_recordes[i]);
-        }
-
-        glColor3f(1.0, 0.5, 0.0);
-
-        glBegin(GL_POLYGON);
-            glVertex3f(-0.7, -0.7, 0.0);
-            glVertex3f(-0.7, 0.7, 0.0);
-            glVertex3f(0.7, 0.7, 0.0);
-            glVertex3f(0.7, -0.7, 0.0);
-        glEnd();
-
-        glColor3f(0.5, 0.5, 1.0);
-        glBegin(GL_POLYGON);
-            glVertex3f(0.7, -0.7, 0.0);
-            glVertex3f(0.7, -0.5, 0.0);
-            glVertex3f(0.05, -0.5, 0.0);
-            glVertex3f(0.05, -0.7, 0.0);
-        glEnd();
-
-        string strpotuacao = "Placar de Lideres";
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(-0.27, 0.55);
-        for (int i = 0; i < strpotuacao.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao[i]);
-
-        string strpotuacao1 = "1 - " + str_recordes[0];
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(-0.6, 0.35);
-        for (int i = 0; i < strpotuacao1.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao1[i]);
-
-        string strpotuacao2 = "2 - " + str_recordes[1];
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(-0.6, 0.20);
-        for (int i = 0; i < strpotuacao2.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao2[i]);
-
-        string strpotuacao3 = "3 - " + str_recordes[2];
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(-0.6, 0.05);
-        for (int i = 0; i < strpotuacao3.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao3[i]);
-
-        string strpotuacao4 = "4 - " + str_recordes[3];
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(-0.6, -0.10);
-        for (int i = 0; i < strpotuacao4.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao4[i]);
-
-        string strpotuacao5 = "5 - " + str_recordes[4];
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(-0.6, -0.25);
-        for (int i = 0; i < strpotuacao5.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao5[i]);
-
-        string strpotuacao6 = "6   - " + str_recordes[5];
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(0.0, 0.35);
-        for (int i = 0; i < strpotuacao6.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao6[i]);
-
-        string strpotuacao7 = "7   - " + str_recordes[6];
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(0.0, 0.20);
-        for (int i = 0; i < strpotuacao7.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao7[i]);
-
-        string strpotuacao8 = "8   - " + str_recordes[7];
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(0.0, 0.05);
-        for (int i = 0; i < strpotuacao8.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao8[i]);
-
-        string strpotuacao9 = "9   - " + str_recordes[8];
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(0.0, -0.10);
-        for (int i = 0; i < strpotuacao9.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao9[i]);
-
-        string strpotuacao10 = "10 - " + str_recordes[9];
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(0.0, -0.25);
-        for (int i = 0; i < strpotuacao10.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strpotuacao10[i]);
-
-        string strvoltar = "Voltar";
-        glColor3f (0.0, 0.0, 0.0);
-        glRasterPos2f(0.27, -0.63);
-        for (int i = 0; i < strvoltar.size(); i++)
-            glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, strvoltar[i]);
-    }
-
-    glutSwapBuffers();
-}
-
-void idle(void)
-{
-	if (r < 0)
-		return;
-	float xnew = xplr + moveplr / 10;
-	if (xnew > orthoDim[0] && xnew < orthoDim[1])
-		xplr = xnew;
-	bx -= 0.0003 * cos(ba);
-	by -= 0.0003 * sin(ba);
-	if (bx - r <= orthoDim[0] && (ba < M_PI / 2.0 || ba > 3 * M_PI / 2.0))
-		ba = (M_PI - ba);
-	if (bx + r >= orthoDim[1] && ba > M_PI / 2.0 && ba < 3 * M_PI / 2.0)
-		ba = (M_PI - ba);
-	while (ba < 0)
-		ba += 2 * M_PI;
-	while (ba > 2 * M_PI)
-		ba -= 2 * M_PI;
+	if (by - r > orthoDim[3])
+	{
+		bx = 0;
+		by = 0;
+		ba = M_PI / 2.0;
+		if (--vidaA == 0)
+		{
+			menu = true;
+			pontuacao = true;
+			xcur = 0;
+			xplr = 0;
+			
+		}
+		turno = true;
+	}
+	if (by + r < orthoDim[2])
+	{
+		bx = 0;
+		by = 0;
+		ba = 3 * M_PI / 2.0;
+		if (--vidaB == 0)
+		{
+			atualiza_rank(300 - relogio);
+			menu = true;
+			pontuacao = true;
+			xcur = 0;
+			xplr = 0;
+		}
+		turno = false;
+	}
 	glutPostRedisplay();
 }
 
 void reshape(int w, int h)
 {
-	// atualizamos as dimensões da tela
 	windowX = w;
 	windowY = h;
 
-	// atualizamos o viewport e o ortho como visto no código 03_quad_color_reshape.cpp
-	glViewport (0, 0, (GLsizei) w, (GLsizei) h);
+	fx = (windowX - originX) / 2.0;
+	fy = (windowY - originY) / 2.0;
+	glViewport (fx, fy, originX, originY);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 
-	// o ortho fica proporcional como visto no código 03_quad_color_reshape.cpp
-	// a função 'reshape' é chamada logo no início do programa, portanto ortho é inicializado aqui
-	if (w <= h)
-	{
-		orthoDim[0] = -1.0;
-		orthoDim[1] =  1.0;
-		orthoDim[2] = -1 * (GLfloat) h / (GLfloat) w;
-		orthoDim[3] =  1 * (GLfloat) h / (GLfloat) w;
-	}
-	else
-	{
-		orthoDim[0] = -1 * (GLfloat) w / (GLfloat) h;
-		orthoDim[1] =  1 * (GLfloat) w / (GLfloat) h;
-		orthoDim[2] = -1.0;
-		orthoDim[3] =  1.0;
-	}
-	glOrtho(orthoDim[0], orthoDim[1], orthoDim[2], orthoDim[3], 0.0, 0.0);
+	float a = -(float) windowX / (float) originX;
+	float b =  (float) windowX / (float) originX;
+	float c = -(float) windowY / (float) originY;
+	float d =  (float) windowY / (float) originY;
+
+	glOrtho(a, b, c, d, 0.0, 0.0);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	xmax = A * (orthoDim[1] - orthoDim[0]) / 200.0;
@@ -463,37 +531,50 @@ void reshape(int w, int h)
 	r = ymax * 3.0 / 4.0;
 }
 
-void keyboard(unsigned char key, int x, int y)
+void mouse(int button, int state, int x, int y)
 {
-	switch (key)
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
 	{
-
-		case 27:
-			// pressionar "ESC" encerra o programa
-			exit(0);
-			break;
-		default:
-			// se um botão diferente for pressionado, a função retorna sem chamar glutPostRedisplay()
-			return;
+		switch (opcao)
+		{
+			case 1:
+				time(&start);
+				vidaA = 3;
+				vidaB = 3;
+				menu = false;
+				maquina = false;
+				break;
+			case 2:
+				time(&start);
+				vidaA = 3;
+				vidaB = 3;
+				menu = false;
+				maquina = true;
+				break;
+			case 3:
+				pontuacao = true;
+				break;
+			case 4:
+				exit(0);
+				break;
+			case 5:
+				pontuacao = false;
+		}
 	}
-}
-
-void keyboardUp(unsigned char key, int x, int y)
-{
-
 }
 
 void specialKeys(int key, int x, int y)
 {
-	switch(key)
-	{
-		case GLUT_KEY_RIGHT:
-			moveplr = 0.05;
-			break;
-		case GLUT_KEY_LEFT:
-			moveplr = -0.05;
-			break;
-	}
+	if (!menu && !maquina)
+		switch(key)
+		{
+			case GLUT_KEY_RIGHT:
+				moveplr = 0.1;
+				break;
+			case GLUT_KEY_LEFT:
+				moveplr = -0.1;
+				break;
+		}
 }
 
 void specialKeysUp(int key, int x, int y)
@@ -508,40 +589,52 @@ void specialKeysUp(int key, int x, int y)
 
 void motion(int x, int y)
 {
-	y = windowY - y;
-	xcur = x * (orthoDim[1] - orthoDim[0]) / windowX + orthoDim[0];
-	ycur = y * (orthoDim[3] - orthoDim[2]) / windowY + orthoDim[2];
+	x -= fx;
+	y = windowY - y - fy;
+	if (!menu)
+	{
+		xcur = x * (orthoDim[1] - orthoDim[0]) / originX + orthoDim[0];
+		if (xcur > orthoDim[1])
+			xcur = orthoDim[1];
+	}
+	else
+	{
+		xmenu = x * (orthoDim[1] - orthoDim[0]) / originX + orthoDim[0];
+		ymenu = y * (orthoDim[3] - orthoDim[2]) / originY + orthoDim[2];
+	}
 }
 
-void atualiza_rank(int pontuacao){
-    int j = 9;
+void atualiza_rank(int pontuacao)
+{
+	int j = 9;
 
-    ifstream arquivo ( "Pontuacoes_COM" );
+	ifstream arquivo ( "Pontuacoes_COM" );
 
-    string str_recordes[10];
-    int int_recordes[10];
-    for( int i = 0; i < 10; i++ ){
-        getline (arquivo, str_recordes[i]);
-        int_recordes[i] = atoi(str_recordes[i].c_str());
-    }
+	string str_recordes[10];
+	int int_recordes[10];
+	for( int i = 0; i < 10; i++ )
+	{
+		getline (arquivo, str_recordes[i]);
+		int_recordes[i] = atoi(str_recordes[i].c_str());
+	}
 
-    if(pontuacao > int_recordes[9]){
-        while(pontuacao > int_recordes[j-1] && j > 0){
-            int_recordes[j] = int_recordes[j-1];
-            j--;
-        }
-        int_recordes[j] = pontuacao;
+	if(pontuacao > int_recordes[9])
+	{
+		while(pontuacao > int_recordes[j-1] && j > 0)
+		{
+			int_recordes[j] = int_recordes[j-1];
+			j--;
+		}
+		int_recordes[j] = pontuacao;
 
-        ofstream arquivo;
-        arquivo.open ("Pontuacoes_COM");
+		ofstream arquivo;
+		arquivo.open ("Pontuacoes_COM");
 
-            for(int i = 0; i < 10; i++){
-                arquivo << int_recordes[i];
-                arquivo << "\n";
-            }
-        arquivo.close();
-    }
-        for(int i = 0; i < 10; i++){
-        cout << int_recordes[i] << endl;
-    }
+		for(int i = 0; i < 10; i++)
+		{
+			arquivo << int_recordes[i];
+			arquivo << "\n";
+		}
+		arquivo.close();
+	}
 }
